@@ -4,4 +4,3 @@ plotly
 openpyxl
 geopy
 leafmap
-st_aggrid

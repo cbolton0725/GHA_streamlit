@@ -50,7 +50,6 @@ with tab1:
                 st.plotly_chart(activ_cost_fig)
                 gap_df = activ_cost_df[activ_cost_df['Gap'] > 0]
                 gap_df['Percent Gap (%)'] = gap_df['Gap']/gap_df['Cost of Subactivity in GNF']*100
-                st.table(gap_df)
                 gap_bar = px.bar(gap_df, x='Name of Activity',
                        y='Percent Gap (%)',
                                  hover_data={'Gap':':,d'})
@@ -216,8 +215,7 @@ with tab2:
 with tab3:
     dist_pop = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
                              sheet_name='Projected_Population')
-    district_1 = st.selectbox('Choose Targeted District', dist_pop['Districts'], help='Filter report to show only one district')
-    dist_pop.loc[:-6]
+    district_1 = st.selectbox('Choose District of Interest', dist_pop['Districts'], help='Filter report to show only one district')
     curr_dist_df = dist_pop.loc[(dist_pop['Year']== 2021),]
     # st.table(curr_dist_df)
 
@@ -248,10 +246,13 @@ with tab3:
     fltr_tab = subactiv_mrg.loc[subactiv_mrg['Expense Location'].str.contains(district_1),:]
     for val in ['Cost of Subactivity in GNF']+list(fltr_tab.columns[6:]):
         fltr_tab[val] = fltr_tab[val]/len(fltr_tab['Expense Location'])
-    fltr_bar_1 = px.bar(fltr_tab, x='Name of Subactivity', y='Cost of Subactivity in GNF')
-    fltr_bar_2 = px.bar(fltr_tab, x='Name of Subactivity', y=fltr_tab.columns[6:-2], barmode='group')
-    st.plotly_chart(fltr_bar_1)
-    st.plotly_chart(fltr_bar_2)
+
+    st.write('Subactivity by District')
+    c1, c2 = st.columns(2)
+    fltr_bar_1 = px.bar(fltr_tab, x='Name of Subactivity', y='Cost of Subactivity in GNF', orientation='h')
+    fltr_bar_2 = px.bar(fltr_tab, x='Name of Subactivity', y=fltr_tab.columns[6:-2], barmode='group',orientation='h')
+    c1.plotly_chart(fltr_bar_1, use_container_width= True)
+    c2.plotly_chart(fltr_bar_2, use_container_width= True)
 
 
 with tab4:
@@ -269,39 +270,17 @@ with tab4:
             g5.plotly_chart(fig, use_container_width=True)
 
             fig = px.line(avail_dists, y=list(dist_pop.columns)[-8], x='Year', color='Districts')
-            g6.plotly_chart(fig)
+            g6.plotly_chart(fig, use_container_width=True)
 
             fig = px.line(avail_dists, y=list(dist_pop.columns)[-9], x='Year', color='Districts')
-            g7.plotly_chart(fig)
+            g7.plotly_chart(fig, use_container_width=True)
 
             fig = px.line(avail_dists, y=list(dist_pop.columns)[-10], x='Year', color='Districts')
-            g8.plotly_chart(fig)
+            g8.plotly_chart(fig, use_container_width=True)
 
             fig = px.line(avail_dists, y=list(dist_pop.columns)[-11], x='Year', color='Districts')
-            g9.plotly_chart(fig)
+            g9.plotly_chart(fig, use_container_width=True)
 
-
-            if dist_pro == dist_pro:
-                dist_pro = avail_dists.loc[dist_pop['Districts'] == dist_pro,:]
-                st.table(dist_pro)
-                g5, g6 = st.columns(2)
-                g7, g8 = st.columns(2)
-                g9, g10 = st.columns(2)
-
-                fig = px.line(avail_dists, y=list(dist_pro.columns)[-7], x='Year')
-                g5.plotly_chart(fig, use_container_width=True)
-
-                fig = px.line(avail_dists, y=list(dist_pro.columns)[-8], x='Year')
-                g6.plotly_chart(fig)
-
-                fig = px.line(avail_dists, y=list(dist_pro.columns)[-9], x='Year')
-                g7.plotly_chart(fig)
-
-                fig = px.line(avail_dists, y=list(dist_pro.columns)[-10], x='Year')
-                g8.plotly_chart(fig)
-
-                fig = px.line(avail_dists, y=list(dist_pro.columns)[-11], x='Year')
-                g9.plotly_chart(fig)
         with st.expander("Five Year Cost Projection"):
             g5, g6 = st.columns(2)
             g7, g8 = st.columns(2)

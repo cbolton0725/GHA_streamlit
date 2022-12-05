@@ -9,7 +9,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import leafmap.foliumap as leafmap
-from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode, JsCode
+from st_aggrid import GridOptionsBuilder, AgGrid, JsCode
+import re
 # import pyodbc
 
 # Importing partial packagesfrom geopy.exc import GeocoderTimedOut
@@ -21,37 +22,6 @@ activity_fin = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
 activity_fin = activity_fin.rename(columns={'Amount of Finance Recevied': 'Amount of Finance Received'})
 activity_fin.head()
 
-# Create Figures
-# Pie Chart
-# https://plotly.com/python/pie-charts/
-
-# graph activity vs. amount of finance received
-activ_fin_df = pd.DataFrame(activity_fin.groupby(by = ['Name of Activity'], as_index = False)['Amount of Finance Received'].sum())
-activ_fin_fig = px.histogram(activ_fin_df, x= "Name of Activity", y = "Amount of Finance Received",
-             barmode='group').update_xaxes (categoryorder="total ascending")
-
-# plot pie chart for same data
-activ_pie = px.pie(activ_fin_df, values='Amount of Finance Received', names='Name of Activity')
-
-# 100 percent stacked bar chart
-activ_stack_df = pd.DataFrame(activity_fin.groupby(by = ['Name of Activity'],
-                                                 as_index = False)[['Amount of Finance Received',
-                                                                   'Cost of Subactivity in GNF',
-                                                                   'Gap']].sum())
-activ_stack_mlt = pd.melt(activ_stack_df, id_vars = 'Name of Activity')
-
-# st.subheader('Sort by clicking on table header')
-# st. dataframe(data=activity_fin[['Name of Subactivity','Cost of Subactivity in GNF','Amount of Finance Received','Gap']], width=1000)
-
-# graph subactivity vs. cost of subactivity
-sub_cost_fig = px.histogram(activity_fin, x = "Name of Subactivity",
-                   y = "Cost of Subactivity in GNF",
-                  orientation = 'v').update_xaxes (categoryorder="total ascending")
-
-sub_fin_fig = px.histogram(activity_fin, y = "Name of Subactivity",
-                   x = "Amount of Finance Received",
-                  orientation = 'h').update_xaxes (categoryorder="total ascending")
-
 # App Design
 st.set_page_config(page_title='TIPAC',  layout='wide', page_icon=':hospital:')
 
@@ -60,10 +30,9 @@ t1, t2 = st.columns((0.07,1))
 
 t1.image('index.png', width = 120)
 t2.title("Tool for Integrated Planning and Costing (TIPAC)")
-# t2.markdown(" **Phone:** 248-XXX-XXXX **| Website:** www.google.com **| Email:** joshiggins@deloitte.com")
 
 # tab setup
-tab1, tab2, tab3 = st.tabs(['Financing','Disease', 'Projections'])
+tab1, tab2, tab3, tab4 = st.tabs(['Financing','Disease by Region', 'Target Districts','Projections'])
 
 with tab1:
     with st.spinner('Updating Report...'):
@@ -71,7 +40,7 @@ with tab1:
             col1, col2 = st.columns([1.5,1])
             with col1:
                 # graph activity vs. amount of finance received
-                activ_cost_df = pd.DataFrame(activity_fin.groupby(by=['Name of Activity'], as_index=False)[['Cost of Subactivity in GNF', 'Amount of Finance Received']].sum())
+                activ_cost_df = pd.DataFrame(activity_fin.groupby(by=['Name of Activity'], as_index=False)[['Cost of Subactivity in GNF', 'Amount of Finance Received', 'Gap']].sum())
                 activ_cost_fig = go.Figure(data=[
                     go.Bar(name='Total Cost', x=activ_cost_df['Name of Activity'], y=activ_cost_df['Cost of Subactivity in GNF']),
                     go.Bar(name='Total Financing Received', x=activ_cost_df['Name of Activity'], y=activ_cost_df['Amount of Finance Received'])
@@ -79,12 +48,19 @@ with tab1:
                 activ_cost_fig.update_layout(barmode='group',
                                              title='Cost and Financing by Activity')
                 st.plotly_chart(activ_cost_fig)
+                gap_df = activ_cost_df[activ_cost_df['Gap'] > 0]
+                gap_df['Percent Gap (%)'] = gap_df['Gap']/gap_df['Cost of Subactivity in GNF']*100
+                st.table(gap_df)
+                gap_bar = px.bar(gap_df, x='Name of Activity',
+                       y='Percent Gap (%)',
+                                 hover_data={'Gap':':,d'})
+                gap_bar.update_layout(xaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(gap_bar)
 
             with col2:
                 # plot pie chart for same data
                 activ_cost_pie = px.pie(activ_cost_df, values='Cost of Subactivity in GNF', names='Name of Activity', title = 'Composition of Activity Costs')
                 st.plotly_chart(activ_cost_pie)
-                # st.image('Stacked_100_bar.png')
                 # st.plotly_chart(sub_fin_fig)
                 # st.plotly_chart(sub_cost_fig)
         with st.expander("Subactivity Detail"):
@@ -114,22 +90,37 @@ with tab1:
                    allow_unsafe_jscode= True)
         with st.expander("Donor Information"):
             sub_act = st.selectbox('Choose Detail Type',
-                                   ['Subactivity', 'Activity'],
-                                   help='Filter report to show subactivity or activity detail')
+                                   ['Subactivity', 'Activity', 'Donor'],
+                                   help='Filter report to show level of detail by category')
             #subactivity prep
             donor_cols = list(activity_fin.columns[4:].values)
             sub_cols = ['Name of Activity', 'Name of Subactivity', 'Amount of Finance Received']
             # activity prep
+            # create df
+            activ_don = pd.DataFrame(activity_fin.groupby(by=['Name of Activity'], as_index=False)[
+                                         ['Amount of Finance Received'] + donor_cols].sum())
+
             if sub_act == 'Subactivity':
                 st.table(activity_fin[sub_cols+donor_cols])
             if sub_act == 'Activity':
-                # create df
-                activ_don = pd.DataFrame(activity_fin.groupby(by=['Name of Activity'], as_index=False)[
-                                                 ['Amount of Finance Received'] + donor_cols].sum())
-                st.table(activ_don)
+                don_act_bar = px.bar(activ_don,
+                                     x='Name of Activity',
+                                     y=list(activ_don.columns[3:-1])+['Gap'])
+                st.plotly_chart(don_act_bar, use_container_width=True)
+                don_stack_bar = px.histogram(activ_don,
+                                     x='Name of Activity',
+                                     y=list(activ_don.columns[3:-1]) + ['Gap'],
+                                     barnorm='percent')
+                st.plotly_chart(don_stack_bar, use_container_width=True)
                 # create pie chart
                 # activ_don_pie = px.pie(activ_don, values='Amount of Finance Received', names=donor_cols, title = 'Donor Composition')
                 # st.write(activ_don.sum(axis =0))
+            if sub_act == 'Donor':
+                don_tot = activ_don[donor_cols].transpose()
+                don_tot['Totals'] = activ_don[donor_cols].sum()
+                don_tot_pie = px.pie(don_tot, values='Totals', names=donor_cols, title = 'Composition of Donor Contributions')
+                st.plotly_chart(don_tot_pie)
+
 
 with tab2:
     with st.spinner('Updating Report...'):
@@ -144,23 +135,28 @@ with tab2:
         total_population = round(hd_db_0['Total Population'][hd_db_0['Regions'] == region_2].max(), 2)
 
         # Creating Header Boxes
-        m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1))
+
+        #m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1))
 
         # Filling Header Boxes In
-        m1.write('')
-        m2.metric(label='Number of Villages', value=nb_villages)
-        m3.metric(label='Number of Schools', value=nb_schools)
-        m4.metric(label='Total Population', value=total_population)
-        m5.write('')
+        #m1.write('')
+        #m2.metric(label='Number of Villages', value=nb_villages)
+        #m3.metric(label='Number of Schools', value=nb_schools)
+        #m4.metric(label='Total Population', value=total_population)
+        #m5.write('')
 
         # Target Population
-        g1, g2 = st.columns((1.5, 1.5))
+        #g1 = st.columns(1)
 
         # Health Analytics Data - Target Population Tab Dataframe
         hd_tp = pd.read_excel('health-analytics-data.xlsx', sheet_name='target_pop')
         hd_tp = hd_tp[hd_tp['Region'] == region_2]
 
-        # Lymphedema vs. Oncho
+        dist_pop = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
+                                 sheet_name='Projected_Population')
+        ed_dist_df = dist_pop.loc[(dist_pop['Year'] == 2021) & (dist_pop['Regions'] == region_2),:]
+
+        # Target Populations
         plot = go.Figure(data=[go.Bar(
             name='LF Lymphedema Management',
             y=hd_tp['LF Lymphedema Management'],
@@ -172,39 +168,31 @@ with tab2:
                 y=hd_tp['Oncho Round 1'],
                 x=hd_tp['District'] #,
                 #marker=dict(color='darkgrey'),
-            )
-        ])
-
-        plot.update_layout(title_text="Lymphedema vs. Oncho",
-                           title_x=0,
-                           margin=dict(l=0, r=10, b=10, t=30),
-                           xaxis_title='',
-                           yaxis_title='Target Population Count',
-                           template='seaborn')
-
-        g1.plotly_chart(plot, use_container_width=True)
-
-        # Adult vs. Child
-        plot = go.Figure(data=[go.Bar(
-            name='SCH School Age Children',
-            y=hd_tp['SCH School Age Children'],
-            x=hd_tp['District'],
         ),
             go.Bar(
-                name='SCH High Risk Adult',
+                name='SCH School Age Children',
+                y=hd_tp['SCH School Age Children'],
+                x=hd_tp['District'],
+        ),
+            go.Bar(
+                name='SCH High Risk Adults',
                 y=hd_tp['SCH High Risk Adult'],
                 x=hd_tp['District'],
-            )
-        ])
+        ),
+            go.Bar(
+                name='STH High Risk Adults',
+                y=ed_dist_df['STH High risk adult'],
+                x=ed_dist_df['Districts'],
+        )])
 
-        plot.update_layout(title_text="Adult vs. Child",
-                           title_x=0,
-                           margin=dict(l=0, r=10, b=10, t=30),
+        plot.update_layout(title_text="Targeted Population",
+                           #title_x=0,
+                           #margin=dict(l=0, r=10, b=10, t=30),
                            xaxis_title='',
                            yaxis_title='Target Population Count',
                            template='seaborn')
 
-        g2.plotly_chart(plot, use_container_width=True)
+        st.plotly_chart(plot, use_container_width=True)
 
         # Choropleth
         g3, g4 = st.columns((3, 1))
@@ -226,99 +214,126 @@ with tab2:
         m.to_streamlit(height=400)
 
 with tab3:
+    dist_pop = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
+                             sheet_name='Projected_Population')
+    district_1 = st.selectbox('Choose Targeted District', dist_pop['Districts'], help='Filter report to show only one district')
+    dist_pop.loc[:-6]
+    curr_dist_df = dist_pop.loc[(dist_pop['Year']== 2021),]
+    # st.table(curr_dist_df)
+
+
+    # Creating Header Boxes
+    d1, d2, d3, d4 = st.columns(4)
+
+    # Filling Header Boxes In
+    d1.metric(label='Region', value=curr_dist_df.loc[curr_dist_df['Districts']==district_1,'Regions'].unique()[0])
+    d2.metric(label='Number of Villages', value=int(curr_dist_df.loc[(curr_dist_df['Districts'] ==district_1),'Number of Villages']))
+    d3.metric(label='Number of Schools', value=int(curr_dist_df.loc[(curr_dist_df['Districts'] ==district_1),'Number of Schools']))
+    d4.metric(label='Total Population', value=int(curr_dist_df.loc[(curr_dist_df['Districts'] ==district_1),'Total Population']))
+
+    plt_x = curr_dist_df.loc[(curr_dist_df['Districts']== district_1),:]
+
+    fig = px.bar(plt_x, x="Districts", y=list(curr_dist_df.columns[-11:-7]),
+                 barmode='group',
+                 title="Target Population by Disease")
+    st.plotly_chart(fig)
+
+    subact_lst = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
+                  sheet_name='Subactivity List')
+    # special character handling
+    subact_lst['Expense Location'] = list(subact_lst['Expense Location'].str.replace('é', 'e'))
+    activ_don = pd.DataFrame(activity_fin.groupby(by=['Name of Activity'], as_index=False)[
+                                 ['Amount of Finance Received'] + donor_cols].sum())
+    subactiv_mrg = subact_lst.merge(activ_don, how='right')
+    fltr_tab = subactiv_mrg.loc[subactiv_mrg['Expense Location'].str.contains(district_1),:]
+    for val in ['Cost of Subactivity in GNF']+list(fltr_tab.columns[6:]):
+        fltr_tab[val] = fltr_tab[val]/len(fltr_tab['Expense Location'])
+    fltr_bar_1 = px.bar(fltr_tab, x='Name of Subactivity', y='Cost of Subactivity in GNF')
+    fltr_bar_2 = px.bar(fltr_tab, x='Name of Subactivity', y=fltr_tab.columns[6:-2], barmode='group')
+    st.plotly_chart(fltr_bar_1)
+    st.plotly_chart(fltr_bar_2)
+
+
+with tab4:
     with st.spinner('Updating Report...'):
         # Filtering to Region
-        health_df = pd.read_excel('health-analytics-data.xlsx', sheet_name='regions')
-        region_1 = st.selectbox('Choose Region ', health_df, help='Filter report to show only one region')
+        region_pro = st.selectbox('Choose Region ', dist_pop['Regions'].unique(), help='Filter report to show only one region')
+        avail_dists = dist_pop.loc[dist_pop['Regions'] == region_pro,:]
+        dist_pro = st.selectbox('Choose District', avail_dists['Districts'].unique(), help='Filter report to show only one district')
+        with st.expander("Five Year Projection of Medicine Need (in Units)"):
+            g5, g6 = st.columns(2)
+            g7, g8 = st.columns(2)
+            g9, g10 = st.columns(2)
 
-        with st.expander("Five Year Projection of Medicine Need"):
-            # Five-year projection of medicine
-            g5, g6, g7 = st.columns((1.33, 1.33, 1.33))
-
-            # Health Analytics Data - Disease Burden Tab Dataframe
-            hd_db_1 = pd.read_excel('health-analytics-data.xlsx', sheet_name='disease_burden_1')
-            hd_db_1 = hd_db_1[hd_db_1['Regions'] == region_1]
-
-            # LF Disease Burden
-            hd_lf_db = hd_db_1[hd_db_1['Disease Type'] == 'LF Disease Burden Code']
-
-            # Oncho Disease Burden
-            hd_on_db = hd_db_1[hd_db_1['Disease Type'] == 'Oncho Disease Burden Code']
-
-            # SCH Disease Burden
-            hd_sch_db = hd_db_1[hd_db_1['Disease Type'] == 'SCH Disease Burden Code']
-
-            # STH Disease Burden
-            hd_sth_db = hd_db_1[hd_db_1['Disease Type'] == 'STH Disease Burden Code']
-
-            # Trachoma Disease Burden
-            hd_tra_db = hd_db_1[hd_db_1['Disease Type'] == 'Trachoma Disease Burden Code']
-
-            # Five-year projection of medicine
-            # LF Disease Burden
-            fig = px.line(hd_lf_db, y="Disease Burden", x="Year", color='Districts')
-
-            fig.update_layout(title_text="LF Disease Burden",
-                              title_x=0,
-                              margin=dict(l=0, r=10, b=10, t=30),
-                              xaxis_title='',
-                              yaxis_title='Target Population Count',
-                              template='seaborn')
-
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-7], x='Year', color='Districts')
             g5.plotly_chart(fig, use_container_width=True)
 
-            # Oncho Disease Burden
-            fig = px.line(hd_on_db, y="Disease Burden", x="Year", color='Districts')
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-8], x='Year', color='Districts')
+            g6.plotly_chart(fig)
 
-            fig.update_layout(title_text="Oncho Disease Burden",
-                              title_x=0,
-                              margin=dict(l=0, r=10, b=10, t=30),
-                              xaxis_title='',
-                              yaxis_title='Target Population Count',
-                              template='seaborn')
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-9], x='Year', color='Districts')
+            g7.plotly_chart(fig)
 
-            g6.plotly_chart(fig, use_container_width=True)
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-10], x='Year', color='Districts')
+            g8.plotly_chart(fig)
 
-            # SCH Disease Burden
-            fig = px.line(hd_sch_db, y="Disease Burden", x="Year", color='Districts')
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-11], x='Year', color='Districts')
+            g9.plotly_chart(fig)
 
-            fig.update_layout(title_text="SCH Disease Burden",
-                              title_x=0,
-                              margin=dict(l=0, r=10, b=10, t=30),
-                              xaxis_title='',
-                              yaxis_title='Target Population Count',
-                              template='seaborn')
 
-            g7.plotly_chart(fig, use_container_width=True)
+            if dist_pro == dist_pro:
+                dist_pro = avail_dists.loc[dist_pop['Districts'] == dist_pro,:]
+                st.table(dist_pro)
+                g5, g6 = st.columns(2)
+                g7, g8 = st.columns(2)
+                g9, g10 = st.columns(2)
 
-            # Five-year projection of medicine - continued
-            g8, g9 = st.columns((1.5, 1.5))
+                fig = px.line(avail_dists, y=list(dist_pro.columns)[-7], x='Year')
+                g5.plotly_chart(fig, use_container_width=True)
 
-            # STH Disease Burden
-            fig = px.line(hd_sth_db, y="Disease Burden", x="Year", color='Districts')
+                fig = px.line(avail_dists, y=list(dist_pro.columns)[-8], x='Year')
+                g6.plotly_chart(fig)
 
-            fig.update_layout(title_text="STH Disease Burden",
-                              title_x=0,
-                              margin=dict(l=0, r=10, b=10, t=30),
-                              xaxis_title='',
-                              yaxis_title='Target Population Count',
-                              template='seaborn')
+                fig = px.line(avail_dists, y=list(dist_pro.columns)[-9], x='Year')
+                g7.plotly_chart(fig)
 
-            g8.plotly_chart(fig, use_container_width=True)
+                fig = px.line(avail_dists, y=list(dist_pro.columns)[-10], x='Year')
+                g8.plotly_chart(fig)
 
-            # Trachoma Disease Burden
-            fig = px.line(hd_tra_db, y="Disease Burden", x="Year", color='Districts')
+                fig = px.line(avail_dists, y=list(dist_pro.columns)[-11], x='Year')
+                g9.plotly_chart(fig)
+        with st.expander("Five Year Cost Projection"):
+            g5, g6 = st.columns(2)
+            g7, g8 = st.columns(2)
+            g9, g10 = st.columns(2)
 
-            fig.update_layout(title_text="Trachoma Disease Burden",
-                              title_x=0,
-                              margin=dict(l=0, r=10, b=10, t=30),
-                              xaxis_title='',
-                              yaxis_title='Target Population Count',
-                              template='seaborn')
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-7], x='Year', color='Districts')
+            g5.plotly_chart(fig, use_container_width=True)
 
-            g9.plotly_chart(fig, use_container_width=True)
-        with st.expander("Five Year Projection of Cost"):
-            st.text("To Be Completed")
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-8], x='Year', color='Districts')
+            g6.plotly_chart(fig)
+
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-9], x='Year', color='Districts')
+            g7.plotly_chart(fig)
+
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-10], x='Year', color='Districts')
+            g8.plotly_chart(fig)
+
+            fig = px.line(avail_dists, y=list(dist_pop.columns)[-11], x='Year', color='Districts')
+            g9.plotly_chart(fig)
+
+        #dist_2 = st.selectbox('Choose Region', avail_dists, help='Filter report to show only one region')
+
+
+            # Five-year projection of medicine
+
+
+            # Projected Population Data
+            # Plot Medicine Need by Region and District
+
+
+            #g9.plotly_chart(fig, use_container_width=True)
+
 
 
 

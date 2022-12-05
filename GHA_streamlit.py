@@ -188,9 +188,9 @@ with tab2:
                            #title_x=0,
                            #margin=dict(l=0, r=10, b=10, t=30),
                            xaxis_title='',
+                           xaxis={'categoryorder': 'total ascending'},
                            yaxis_title='Target Population Count',
                            template='seaborn')
-
         st.plotly_chart(plot, use_container_width=True)
 
         # Choropleth
@@ -217,8 +217,7 @@ with tab3:
                              sheet_name='Projected_Population')
     district_1 = st.selectbox('Choose District of Interest', dist_pop['Districts'], help='Filter report to show only one district')
     curr_dist_df = dist_pop.loc[(dist_pop['Year']== 2021),]
-    # st.table(curr_dist_df)
-
+    # st.table(curr_dist_df)He
 
     # Creating Header Boxes
     d1, d2, d3, d4 = st.columns(4)
@@ -234,6 +233,7 @@ with tab3:
     fig = px.bar(plt_x, x="Districts", y=list(curr_dist_df.columns[-11:-7]),
                  barmode='group',
                  title="Target Population by Disease")
+    fig.update_layout(xaxis={'categoryorder': 'total ascending'})
     st.plotly_chart(fig)
 
     subact_lst = pd.read_excel('FINAL Guinea TIPAC Hackathon Data Set.xlsx',
@@ -244,15 +244,15 @@ with tab3:
                                  ['Amount of Finance Received'] + donor_cols].sum())
     subactiv_mrg = subact_lst.merge(activ_don, how='right')
     fltr_tab = subactiv_mrg.loc[subactiv_mrg['Expense Location'].str.contains(district_1),:]
-    for val in ['Cost of Subactivity in GNF']+list(fltr_tab.columns[6:]):
-        fltr_tab[val] = fltr_tab[val]/len(fltr_tab['Expense Location'])
-
     st.write('Subactivity by District')
     c1, c2 = st.columns(2)
-    fltr_bar_1 = px.bar(fltr_tab, x='Name of Subactivity', y='Cost of Subactivity in GNF', orientation='h')
-    fltr_bar_2 = px.bar(fltr_tab, x='Name of Subactivity', y=fltr_tab.columns[6:-2], barmode='group',orientation='h')
-    c1.plotly_chart(fltr_bar_1, use_container_width= True)
-    c2.plotly_chart(fltr_bar_2, use_container_width= True)
+    fltr_bar_1 = px.bar(fltr_tab, x='Name of Subactivity', y='Cost of Subactivity in GNF')
+
+    fltr_bar_2 = px.bar(fltr_tab, x='Name of Subactivity', y=list(fltr_tab.columns.values[-11:]), barmode='group')
+    fltr_bar_1.update_layout(xaxis={'categoryorder': 'total ascending'},  height=500)
+    fltr_bar_2.update_layout(xaxis={'categoryorder': 'total ascending'}, height=500)
+    c1.plotly_chart(fltr_bar_1)
+    c2.plotly_chart(fltr_bar_2,use_container_width=True)
 
 
 with tab4:
